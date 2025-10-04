@@ -1,0 +1,103 @@
+
+// ========== PIN DEFINITIONS ==========
+const int BUTTON1_PIN = 2;
+const int BUTTON2_PIN = 3;
+const int LED_PIN = 13;
+
+// ========== STATE VARIABLES ==========
+// Volatile because modified in ISR
+volatile bool button1Flag = false;
+volatile bool button2Flag = false;
+
+// LED state
+bool ledState = false;
+
+// ========== SETUP ==========
+void setup() {
+  // Initialize Serial
+  Serial.begin(9600);
+  Serial.println("=== SIT315 M1.T1P QP3 - Pin Change Interrupt System ===");
+  
+  // Configure pins
+  pinMode(BUTTON1_PIN, INPUT_PULLUP);
+  pinMode(BUTTON2_PIN, INPUT_PULLUP);
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW);
+  
+  // Configure Pin Change Interrupts
+  setupPinChangeInterrupts();
+  
+  Serial.println("System Ready!");
+  Serial.println("---");
+}
+
+// ========== MAIN LOOP ==========
+void loop() {
+  // Process Button 1
+  if (button1Flag) {
+    button1Flag = false;
+    handleButton1();
+  }
+  
+  // Process Button 2
+  if (button2Flag) {
+    button2Flag = false;
+    handleButton2();
+  }
+}
+
+// ========== PIN CHANGE INTERRUPT SETUP ==========
+void setupPinChangeInterrupts() {
+  // Enable Pin Change Interrupt for PCINT2 group (pins 0-7)
+  // PCICR: Pin Change Interrupt Control Register
+  PCICR |= B00000100;   // Enable PCIE2 bit
+  
+  // Enable specific pins in PCMSK2
+  // Pin 2 = PCINT18 (bit 2)
+  // Pin 3 = PCINT19 (bit 3)
+  PCMSK2 |= B00001100;  // Enable bits 2 and 3
+  
+  Serial.println("Pin Change Interrupts Configured:");
+  Serial.println("  PCICR = " + String(PCICR, BIN) + " (PCIE2 enabled)");
+  Serial.println("  PCMSK2 = " + String(PCMSK2, BIN) + " (PCINT18, PCINT19)");
+  Serial.println("  Monitoring: Pin 2 (Button 1), Pin 3 (Button 2)");
+}
+
+// ========== ISR: PIN CHANGE INTERRUPT ==========
+// Triggered when any enabled pin in PCINT2 group changes
+ISR(PCINT2_vect) {
+  // Read button states (LOW = pressed because of INPUT_PULLUP)
+  bool btn1 = (digitalRead(BUTTON1_PIN) == LOW);
+  bool btn2 = (digitalRead(BUTTON2_PIN) == LOW);
+  
+  // Set flags when buttons are pressed
+  if (btn1) button1Flag = true;
+  if (btn2) button2Flag = true;
+}
+
+// ========== BUTTON HANDLERS ==========
+void handleButton1() {
+  // Toggle LED
+  ledState = !ledState;
+  digitalWrite(LED_PIN, ledState);
+  
+  // Log to Serial
+  Serial.println("[SENSE] Button 1 pressed (Pin 2)");
+  Serial.println("[THINK] Toggle LED state");
+  Serial.print("[ACT] LED turned ");
+  Serial.println(ledState ? "ON" : "OFF");
+  Serial.println("---");
+}
+
+void handleButton2() {
+  // Toggle LED
+  ledState = !ledState;
+  digitalWrite(LED_PIN, ledState);
+  
+  // Log to Serial
+  Serial.println("[SENSE] Button 2 pressed (Pin 3)");
+  Serial.println("[THINK] Toggle LED state");
+  Serial.print("[ACT] LED turned ");
+  Serial.println(ledState ? "ON" : "OFF");
+  Serial.println("---");
+}

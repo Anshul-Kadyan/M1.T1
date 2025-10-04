@@ -1,0 +1,46 @@
+
+volatile bool button1Pressed = false;  // Volatile flag shared between ISR and loop
+
+// ISR: Called instantly on Button 1 press. Keep short - just set flag and log.
+void handleButton1Interrupt() {
+  button1Pressed = true;
+  Serial.println("Interrupt: Button 1 pressed");  // Real-time feedback
+}
+
+void setup() {
+  // Input setup with internal pull-ups (buttons active LOW when pressed)
+  pinMode(2, INPUT_PULLUP);  // Sensor 1 (Button 1, interrupt-enabled)
+  pinMode(3, INPUT_PULLUP);  // Sensor 2 (Button 2, polled)
+  
+  // Output setup
+  pinMode(13, OUTPUT);       // Actuator (LED)
+  digitalWrite(13, LOW);     // Start LED off
+  
+  // Serial for feedback
+  Serial.begin(9600);
+  Serial.println("System started - QP 2/4: Waiting for sensor events");
+  
+  // Attach interrupt to pin 2: Calls ISR on FALLING edge (button press from HIGH to LOW)
+  attachInterrupt(digitalPinToInterrupt(2), handleButton1Interrupt, FALLING);
+}
+
+void loop() {
+  // Poll Sensor 2 state
+  bool button2Pressed = (digitalRead(3) == LOW);
+  
+  // Think: Conditional logic - both must be active
+  if (button1Pressed && button2Pressed) {
+    digitalWrite(13, HIGH);  // Act: Turn LED on
+    Serial.println("Conditional met: Both buttons pressed - LED ON");
+    button1Pressed = false;  // Reset flag after action
+  } else {
+    digitalWrite(13, LOW);   // Act: Turn LED off if conditions not met
+    if (button1Pressed) {
+      Serial.println("Only Button 1 pressed - Waiting for Button 2");
+    } else if (button2Pressed) {
+      Serial.println("Only Button 2 pressed - Waiting for interrupt on Button 1");
+    }
+  }
+  
+  delay(100);  // Short delay in loop for debounce/stability (not in ISR)
+}

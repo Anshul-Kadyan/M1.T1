@@ -1,0 +1,184 @@
+// ========== PIN DEFINITIONS ==========
+const int BUTTON1_PIN = 8;      // Button 1 (PCINT0 group)
+const int BUTTON2_PIN = 9;      // Button 2 (PCINT0 group)
+const int LED1_PIN = 11;        // LED controlled by Button 1
+const int LED2_PIN = 12;        // LED controlled by Button 2
+const int STATUS_LED_PIN = 13;  // Status LED (blinks via timer)
+
+// ========== STATE VARIABLES ==========
+// Volatile = modified in ISR
+volatile bool button1Flag = false;
+volatile bool button2Flag = false;
+volatile bool timerFlag = false;
+
+// LED states
+bool led1State = false;
+bool led2State = false;
+bool statusLedState = false;
+
+// Timer counter
+volatile unsigned int timerCount = 0;
+
+// ========== SETUP ==========
+void setup() {
+  // Initialize Serial
+  Serial.begin(9600);
+  Serial.println("=== SIT315 M1.T1P QP4 - Timer + PCI System ===");
+  
+  // Configure pins
+  setupPins();
+  
+  // Configure Pin Change Interrupts
+  setupPinChangeInterrupts();
+  
+  // Configure Timer1 Interrupt
+  setupTimer1();
+  
+  Serial.println("System Ready!");
+  Serial.println("---");
+}
+
+// ========== MAIN LOOP ==========
+void loop() {
+  // Process Button 1 (Event-based)
+  if (button1Flag) {
+    button1Flag = false;
+    handleButton1();
+  }
+  
+  // Process Button 2 (Event-based)
+  if (button2Flag) {
+    button2Flag = false;
+    handleButton2();
+  }
+  
+  // Process Timer (Time-based)
+  if (timerFlag) {
+    timerFlag = false;
+    handleTimer();
+  }
+}
+
+// ========== PIN SETUP ==========
+void setupPins() {
+  // Buttons as inputs with pull-up
+  pinMode(BUTTON1_PIN, INPUT_PULLUP);
+  pinMode(BUTTON2_PIN, INPUT_PULLUP);
+  
+  // LEDs as outputs
+  pinMode(LED1_PIN, OUTPUT);
+  pinMode(LED2_PIN, OUTPUT);
+  pinMode(STATUS_LED_PIN, OUTPUT);
+  
+  // Initialize all LEDs OFF
+  digitalWrite(LED1_PIN, LOW);
+  digitalWrite(LED2_PIN, LOW);
+  digitalWrite(STATUS_LED_PIN, LOW);
+  
+  Serial.println("Pins configured:");
+  Serial.println("  Buttons: Pin 8, 9 (INPUT_PULLUP)");
+  Serial.println("  LEDs: Pin 11, 12, 13 (OUTPUT)");
+}
+
+// ========== PIN CHANGE INTERRUPT SETUP ==========
+void setupPinChangeInterrupts() {
+  // Enable PCINT0 group (pins 8-13)
+  PCICR |= B00000001;   // Enable PCIE0
+  
+  // Enable Pin 8 (PCINT0) and Pin 9 (PCINT1)
+  PCMSK0 |= B00000011;  // Enable bits 0 and 1
+  
+  Serial.println("Pin Change Interrupts configured:");
+  Serial.println("  Group: PCINT0 (pins 8-13)");
+  Serial.println("  Enabled: Pin 8, Pin 9");
+}
+
+// ========== TIMER1 SETUP ==========
+void setupTimer1() {
+  // Disable interrupts during setup
+  noInterrupts();
+  
+  // Reset Timer1 registers
+  TCCR1A = 0;
+  TCCR1B = 0;
+  TCNT1 = 0;
+  
+  // Set compare value for 1 Hz (1 second)
+  // Formula: (16MHz / (prescaler * frequency)) - 1
+  // (16000000 / (1024 * 1)) - 1 = 15624
+  OCR1A = 15624;
+  
+  // CTC mode (Clear Timer on Compare)
+  TCCR1B |= (1 << WGM12);
+  
+  // Set prescaler to 1024
+  TCCR1B |= (1 << CS12) | (1 << CS10);
+  
+  // Enable Timer1 compare interrupt
+  TIMSK1 |= (1 << OCIE1A);
+  
+  // Re-enable interrupts
+  interrupts();
+  
+  Serial.println("Timer1 configured:");
+  Serial.println("  Frequency: 1 Hz (1 second)");
+  Serial.println("  Prescaler: 1024");
+  Serial.println("  OCR1A: 15624");
+}
+
+// ========== ISR: PIN CHANGE INTERRUPT ==========
+// Event-based: Triggered by button press
+ISR(PCINT0_vect) {
+  // Check which button was pressed
+  if (digitalRead(BUTTON1_PIN) == LOW) {
+    button1Flag = true;
+  }
+  
+  if (digitalRead(BUTTON2_PIN) == LOW) {
+    button2Flag = true;
+  }
+}
+
+// ========== ISR: TIMER1 INTERRUPT ==========
+// Time-based: Triggered every 1 second
+ISR(TIMER1_COMPA_vect) {
+  timerFlag = true;
+  timerCount++;
+}
+
+// ========== EVENT HANDLERS ==========
+
+// Handle Button 1 (Event-based)
+void handleButton1() {
+  led1State = !led1State;
+  digitalWrite(LED1_PIN, led1State);
+  
+  Serial.println("[EVENT] Button 1 pressed");
+  Serial.print("[ACT] LED1 ");
+  Serial.println(led1State ? "ON" : "OFF");
+  Serial.println("---");
+}
+
+// Handle Button 2 (Event-based)
+void handleButton2() {
+  led2State = !led2State;
+  digitalWrite(LED2_PIN, led2State);
+  
+  Serial.println("[EVENT] Button 2 pressed");
+  Serial.print("[ACT] LED2 ");
+  Serial.println(led2State ? "ON" : "OFF");
+  Serial.println("---");
+}
+
+// Handle Timer (Time-based)
+void handleTimer() {
+  // Toggle status LED
+  statusLedState = !statusLedState;
+  digitalWrite(STATUS_LED_PIN, statusLedState);
+  
+  Serial.print("[TIMER] Tick #");
+  Serial.print(timerCount);
+  Serial.print(" - Status LED ");
+  Serial.println(statusLedState ? "ON" : "OFF");
+  Serial.println("---");
+}
